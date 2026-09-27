@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MercadoFlow — Gestão Financeira</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0e17; --surface: #111827; --card: #161e2e; --border: #1f2d45;
+    --accent: #00e5a0; --accent2: #ff6b35; --accent3: #4d9fff;
+    --text: #e8edf5; --muted: #6b7a99;
+    --danger: #ff4d6d; --success: #00e5a0; --warning: #ffd166;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; overflow-x:hidden; }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: linear-gradient(rgba(0,229,160,0.025) 1px,transparent 1px), linear-gradient(90deg,rgba(0,229,160,0.025) 1px,transparent 1px);
+    background-size:40px 40px;
+  }
+  .app { position:relative; z-index:1; display:flex; }
+
+  /* SIDEBAR */
+  .sidebar { width:240px; min-height:100vh; background:var(--surface); border-right:1px solid var(--border); padding:28px 0; position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; }
+  .logo { padding:0 24px 28px; border-bottom:1px solid var(--border); margin-bottom:20px; }
+  .logo-text { font-family:'Syne',sans-serif; font-size:20px; font-weight:800; letter-spacing:-0.5px; }
+  .logo-text span { color:var(--accent); }
+  .logo-sub { font-size:11px; color:var(--muted); margin-top:2px; letter-spacing:0.5px; text-transform:uppercase; }
+  .status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--danger); margin-right:6px; transition:background 0.3s; }
+  .status-dot.online { background:var(--success); }
+  .status-label { font-size:11px; color:var(--muted); display:flex; align-items:center; margin-top:8px; }
+
+  .nav-section { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); padding:16px 24px 8px; font-weight:600; }
+  .nav-item { display:flex; align-items:center; gap:12px; padding:11px 24px; cursor:pointer; font-size:14px; font-weight:500; color:var(--muted); transition:all 0.2s; border-left:3px solid transparent; }
+  .nav-item:hover { color:var(--text); background:rgba(255,255,255,0.03); }
+  .nav-item.active { color:var(--accent); border-left-color:var(--accent); background:rgba(0,229,160,0.06); }
+  .nav-icon { font-size:17px; width:20px; text-align:center; }
+
+  .sidebar-footer { margin-top:auto; padding:16px 24px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+  .btn-backup { display:flex; align-items:center; gap:8px; padding:9px 14px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; width:100%; }
+  .btn-backup:hover { color:var(--text); border-color:var(--accent); background:rgba(0,229,160,0.05); }
+
+  /* MAIN */
+  .main { margin-left:240px; flex:1; padding:32px; min-height:100vh; }
+  .page { display:none; }
+  .page.active { display:block; animation:fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+  .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; }
+  .page-title { font-family:'Syne',sans-serif; font-size:26px; font-weight:800; letter-spacing:-1px; }
+  .page-sub { color:var(--muted); font-size:13px; margin-top:3px; }
+
+  .month-selector { display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 14px; font-size:13px; }
+  .month-selector select { background:transparent; border:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; outline:none; }
+  .month-selector select option { background:var(--card); }
+
+  /* CARDS */
+  .cards-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
+  .kpi-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; transition:transform 0.2s,border-color 0.2s; }
+  .kpi-card:hover { transform:translateY(-2px); border-color:rgba(0,229,160,0.2); }
+  .kpi-card::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--card-accent,var(--accent)); border-radius:14px 14px 0 0; }
+  .kpi-card.danger { --card-accent:var(--danger); }
+  .kpi-card.warning { --card-accent:var(--warning); }
+  .kpi-card.info { --card-accent:var(--accent3); }
+  .kpi-card.success { --card-accent:var(--success); }
+  .kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; margin-bottom:8px; }
+  .kpi-value { font-family:'Syne',sans-serif; font-size:24px; font-weight:800; letter-spacing:-1px; line-height:1; }
+  .kpi-value.green { color:var(--success); } .kpi-value.red { color:var(--danger); }
+  .kpi-value.yellow { color:var(--warning); } .kpi-value.blue { color:var(--accent3); }
+  .kpi-delta { font-size:12px; margin-top:6px; color:var(--muted); }
+  .kpi-icon { position:absolute; top:18px; right:18px; font-size:26px; opacity:0.12; }
+
+  /* GRID */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+  .grid-3 { display:grid; grid-template-columns:2fr 1fr; gap:18px; margin-bottom:18px; }
+
+  /* PANEL */
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .panel-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .panel-title { font-family:'Syne',sans-serif; font-size:14px; font-weight:700; letter-spacing:-0.3px; }
+  .panel-body { padding:20px; }
+
+  /* FORM */
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+  .form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px; }
+  .form-single { margin-bottom:12px; }
+  label { display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:5px; }
+  input, select, textarea { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; padding:9px 12px; outline:none; transition:border-color 0.2s,box-shadow 0.2s; }
+  input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,229,160,0.1); }
+  input[type="number"] { -moz-appearance:textfield; }
+  input[type="number"]::-webkit-inner-spin-button { display:none; }
+  select option { background:var(--surface); }
+
+  .btn { padding:10px 20px; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; display:inline-flex; align-items:center; gap:7px; }
+  .btn-primary { background:var(--accent); color:#0a0e17; }
+  .btn-primary:hover { background:#00c988; transform:translateY(-1px); }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .btn-danger { background:transparent; color:var(--danger); border:1px solid var(--danger); padding:5px 10px; font-size:11px; }
+  .btn-danger:hover { background:rgba(255,77,109,0.1); }
+
+  /* TABLE */
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding:9px 12px; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border); }
+  td { padding:11px 12px; font-size:13px; border-bottom:1px solid rgba(31,45,69,0.5); }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:rgba(255,255,255,0.015); }
+  .badge { display:inline-block; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:600; }
+  .badge-green { background:rgba(0,229,160,0.12); color:var(--success); }
+  .badge-red { background:rgba(255,77,109,0.12); color:var(--danger); }
+  .badge-yellow { background:rgba(255,209,102,0.12); color:var(--warning); }
+  .badge-blue { background:rgba(77,159,255,0.12); color:var(--accent3); }
+  .text-green { color:var(--success); } .text-red { color:var(--danger); }
+  .text-yellow { color:var(--warning); } .text-muted { color:var(--muted); }
+
+  .chart-container { position:relative; height:250px; }
+
+  .progress-bar { background:var(--border); border-radius:4px; height:6px; overflow:hidden; margin-top:6px; }
+  .progress-fill { height:100%; border-radius:4px; transition:width 0.6s ease; }
+
+  .margin-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .margin-row:last-child { border-bottom:none; }
+  .margin-row .label { color:var(--muted); }
+
+  .empty-state { text-align:center; padding:40px 20px; color:var(--muted); }
+  .empty-icon { font-size:36px; margin-bottom:10px; opacity:0.35; }
+  .empty-state p { font-size:13px; }
+
+  /* TOAST */
+  .toast { position:fixed; bottom:22px; right:22px; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:10px; padding:12px 18px; font-size:13px; z-index:9999; transform:translateY(80px); opacity:0; transition:all 0.3s; max-width:300px; }
+  .toast.show { transform:translateY(0); opacity:1; }
+  .toast.error { border-left-color:var(--danger); }
+
+  /* LOADING */
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(0,0,0,0.2); border-top-color:#0a0e17; border-radius:50%; animation:spin 0.6s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+  @media(max-width:1100px) {
+    .cards-grid { grid-template-columns:1fr 1fr; }
+    .grid-2,.grid-3 { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-text">Mercado<span>Flow</span></div>
+    <div class="logo-sub">Gestão Financeira</div>
+    <div class="status-label"><span class="status-dot" id="status-dot"></span><span id="status-txt">Conectando...</span></div>
+  </div>
+
+  <div class="nav-section">Principal</div>
+  <div class="nav-item active" onclick="navigate('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
+
+  <div class="nav-section">Lançamentos</div>
+  <div class="nav-item" onclick="navigate('vendas')"><span class="nav-icon">💳</span> Vendas Semanais</div>
+  <div class="nav-item" onclick="navigate('compras')"><span class="nav-icon">🛒</span> Compras Semanais</div>
+  <div class="nav-item" onclick="navigate('custos')"><span class="nav-icon">📋</span> Custos Fixos</div>
+
+  <div class="nav-section">Análise</div>
+  <div class="nav-item" onclick="navigate('relatorio')"><span class="nav-icon">📈</span> Relatório Mensal</div>
+
+  <div class="sidebar-footer">
+    <button class="btn-backup" onclick="exportBackup()">💾 Exportar Backup</button>
+    <label class="btn-backup" style="cursor:pointer">
+      📂 Importar Backup
+      <input type="file" accept=".json" style="display:none" onchange="importBackup(event)">
+    </label>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div><div class="page-title">Dashboard</div><div class="page-sub">Visão geral do seu negócio</div></div>
+      <div class="month-selector">📅 <select id="dash-month" onchange="renderDashboard()"></select></div>
+    </div>
+    <div class="cards-grid">
+      <div class="kpi-card success"><div class="kpi-icon">💰</div><div class="kpi-label">Receita Total</div><div class="kpi-value green" id="kpi-receita">—</div><div class="kpi-delta" id="kpi-receita-d">—</div></div>
+      <div class="kpi-card danger"><div class="kpi-icon">🛒</div><div class="kpi-label">Custo de Compras</div><div class="kpi-value red" id="kpi-compras">—</div><div class="kpi-delta" id="kpi-compras-d">—</div></div>
+      <div class="kpi-card warning"><div class="kpi-icon">📋</div><div class="kpi-label">Custos Fixos</div><div class="kpi-value yellow" id="kpi-fixos">—</div><div class="kpi-delta">Aluguel, energia, repasses</div></div>
+      <div class="kpi-card info"><div class="kpi-icon">🏆</div><div class="kpi-label">Lucro Líquido</div><div class="kpi-value" id="kpi-lucro" style="color:var(--accent)">—</div><div class="kpi-delta" id="kpi-margem">Margem: —</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel"><div class="panel-header"><span class="panel-title">Vendas vs Compras por Semana</span></div><div class="panel-body"><div class="chart-container"><canvas id="chart-semanas"></canvas></div></div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Composição dos Gastos</span></div><div class="panel-body"><div class="chart-container"><canvas id="chart-composicao"></canvas></div></div></div>
+    </div>
+    <div class="grid-3">
+      <div class="panel"><div class="panel-header"><span class="panel-title">Evolução — Últimos 6 Meses</span></div><div class="panel-body"><div class="chart-container"><canvas id="chart-evolucao"></canvas></div></div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Resumo do Período</span></div>
+        <div class="panel-body">
+          <div class="margin-row"><span class="label">Receita Bruta</span><span class="text-green" id="res-receita">—</span></div>
+          <div class="margin-row"><span class="label">(-) Custo de Compras</span><span class="text-red" id="res-compras">—</span></div>
+          <div class="margin-row"><span class="label">= Lucro Bruto</span><span id="res-lb">—</span></div>
+          <div class="margin-row"><span class="label">(-) Custos Fixos</span><span class="text-yellow" id="res-fixos">—</span></div>
+          <div class="margin-row" style="font-weight:700;font-size:15px"><span>= Lucro Líquido</span><span id="res-ll" style="color:var(--accent)">—</span></div>
+          <div style="margin-top:14px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="text-muted">Margem Líquida</span><span id="res-mp">0%</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="res-mb" style="width:0%;background:var(--accent)"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VENDAS -->
+  <div class="page" id="page-vendas">
+    <div class="page-header"><div><div class="page-title">Vendas Semanais</div><div class="page-sub">Dados extraídos da Stone / VM</div></div></div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">➕ Nova Entrada de Vendas</span></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div><label>Mês de Referência</label><select id="venda-mes"></select></div>
+            <div><label>Semana</label><select id="venda-semana"><option value="1">Semana 1 (1–7)</option><option value="2">Semana 2 (8–14)</option><option value="3">Semana 3 (15–21)</option><option value="4">Semana 4 (22–28)</option><option value="5">Semana 5 (29–31)</option></select></div>
+          </div>
+          <div class="form-row">
+            <div><label>Dinheiro (R$)</label><input type="number" id="v-din" placeholder="0,00" step="0.01"></div>
+            <div><label>Débito (R$)</label><input type="number" id="v-deb" placeholder="0,00" step="0.01"></div>
+          </div>
+          <div class="form-row">
+            <div><label>Crédito (R$)</label><input type="number" id="v-cre" placeholder="0,00" step="0.01"></div>
+            <div><label>Pix (R$)</label><input type="number" id="v-pix" placeholder="0,00" step="0.01"></div>
+          </div>
+          <div class="form-single"><label>Observação</label><input type="text" id="v-obs" placeholder="Ex: semana com feriado..."></div>
+          <button class="btn btn-primary" id="btn-venda" onclick="salvarVenda()">✓ Salvar Venda</button>
+        </div>
+      </div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Formas de Pagamento</span></div><div class="panel-body"><div class="chart-container"><canvas id="chart-formas"></canvas></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Histórico de Vendas</span><div class="month-selector"><select id="vf-mes" onchange="loadVendas()"></select></div></div>
+      <div class="panel-body">
+        <div class="table-wrap"><table><thead><tr><th>Mês</th><th>Semana</th><th>Dinheiro</th><th>Débito</th><th>Crédito</th><th>Pix</th><th>Total</th><th>Obs</th><th></th></tr></thead><tbody id="vtbody"></tbody></table></div>
+        <div class="empty-state" id="v-empty" style="display:none"><div class="empty-icon">💳</div><p>Nenhuma venda neste mês</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPRAS -->
+  <div class="page" id="page-compras">
+    <div class="page-header"><div><div class="page-title">Compras Semanais</div><div class="page-sub">Abastecimento do mercado</div></div></div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">➕ Nova Compra</span></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div><label>Mês de Referência</label><select id="compra-mes"></select></div>
+            <div><label>Semana</label><select id="compra-semana"><option value="1">Semana 1</option><option value="2">Semana 2</option><option value="3">Semana 3</option><option value="4">Semana 4</option><option value="5">Semana 5</option></select></div>
+          </div>
+          <div class="form-single"><label>Fornecedor / Distribuidor</label><input type="text" id="c-forn" placeholder="Ex: Distribuidora ABC..."></div>
+          <div class="form-row">
+            <div><label>Valor Total (R$)</label><input type="number" id="c-val" placeholder="0,00" step="0.01"></div>
+            <div><label>Categoria</label><select id="c-cat"><option>Alimentos</option><option>Bebidas</option><option>Higiene/Limpeza</option><option>Laticínios</option><option>Congelados</option><option>Outros</option></select></div>
+          </div>
+          <div class="form-single"><label>Observação</label><input type="text" id="c-obs" placeholder="NF, pedido..."></div>
+          <button class="btn btn-primary" id="btn-compra" onclick="salvarCompra()">✓ Salvar Compra</button>
+        </div>
+      </div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Compras por Categoria</span></div><div class="panel-body"><div class="chart-container"><canvas id="chart-cats"></canvas></div></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Histórico de Compras</span><div class="month-selector"><select id="cf-mes" onchange="loadCompras()"></select></div></div>
+      <div class="panel-body">
+        <div class="table-wrap"><table><thead><tr><th>Mês</th><th>Semana</th><th>Fornecedor</th><th>Categoria</th><th>Valor</th><th>Obs</th><th></th></tr></thead><tbody id="ctbody"></tbody></table></div>
+        <div class="empty-state" id="c-empty" style="display:none"><div class="empty-icon">🛒</div><p>Nenhuma compra neste mês</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOS -->
+  <div class="page" id="page-custos">
+    <div class="page-header"><div><div class="page-title">Custos Fixos Mensais</div><div class="page-sub">Aluguel, condomínio, energia, franquia...</div></div></div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">➕ Lançar Custo Fixo</span></div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div><label>Mês de Referência</label><select id="custo-mes"></select></div>
+            <div><label>Categoria</label><select id="cu-cat">
+              <option>Aluguel Container</option><option>Condomínio</option>
+              <option>Energia Elétrica</option><option>Franquia</option>
+              <option>Internet/Telecom</option><option>Manutenção</option><option>Outros</option>
+            </select></div>
+          </div>
+          <div class="form-row">
+            <div><label>Descrição</label><input type="text" id="cu-desc" placeholder="Detalhes..."></div>
+            <div><label>Valor (R$)</label><input type="number" id="cu-val" placeholder="0,00" step="0.01"></div>
+          </div>
+          <button class="btn btn-primary" id="btn-custo" onclick="salvarCusto()">✓ Salvar Custo</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Custos por Categoria</span><div class="month-selector"><select id="cu-filter" onchange="loadCustosChart()"></select></div></div>
+        <div class="panel-body"><div class="chart-container"><canvas id="chart-cu-cat"></canvas></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Histórico de Custos Fixos</span><div class="month-selector"><select id="cuf-mes" onchange="loadCustos()"></select></div></div>
+      <div class="panel-body">
+        <div class="table-wrap"><table><thead><tr><th>Mês</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr></thead><tbody id="cutbody"></tbody></table></div>
+        <div class="empty-state" id="cu-empty" style="display:none"><div class="empty-icon">📋</div><p>Nenhum custo fixo neste mês</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RELATÓRIO -->
+  <div class="page" id="page-relatorio">
+    <div class="page-header">
+      <div><div class="page-title">Relatório Mensal</div><div class="page-sub">DRE e análise de resultado</div></div>
+      <div class="month-selector">📅 <select id="rel-mes" onchange="renderRelatorio()"></select></div>
+    </div>
+    <div class="cards-grid" id="rel-kpis"></div>
+    <div class="grid-2">
+      <div class="panel"><div class="panel-header"><span class="panel-title">DRE Simplificado</span></div><div class="panel-body" id="rel-dre"></div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Vendas por Semana</span></div><div class="panel-body"><div class="chart-container"><canvas id="chart-rel-s"></canvas></div></div></div>
+    </div>
+    <div class="panel" style="margin-bottom:20px">
+      <div class="panel-header"><span class="panel-title">Detalhe dos Custos Fixos</span></div>
+      <div class="panel-body">
+        <div class="table-wrap"><table><thead><tr><th>Categoria</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="rel-cu-tbody"></tbody></table></div>
+        <div class="empty-state" id="rel-cu-empty" style="display:none"><p>Nenhum custo registrado</p></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:5000/api';
+const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ─── UTILS ───────────────────────────────────────
+
+function fmt(v) { return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function currentMonth() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+
+function getMonthsList() {
+  const now = new Date(), list = [];
+  for (let i=11; i>=0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    list.push({ key: d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'), label: MESES_FULL[d.getMonth()]+' '+d.getFullYear() });
+  }
+  return list;
+}
+
+function mesLabel(key) {
+  const [y,m] = key.split('-');
+  return MESES_FULL[parseInt(m)-1]+' '+y;
+}
+
+function populateSelect(el, selected) {
+  if (!el) return;
+  const cur = selected || el.value || currentMonth();
+  el.innerHTML = getMonthsList().map(m => `<option value="${m.key}"${m.key===cur?' selected':''}>${m.label}</option>`).join('');
+}
+
+function initSelects() {
+  ['dash-month','venda-mes','vf-mes','compra-mes','cf-mes','custo-mes','cuf-mes','cu-filter','rel-mes']
+    .forEach(id => populateSelect(document.getElementById(id)));
+}
+
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show '+type;
+  setTimeout(() => t.className='toast', 3200);
+}
+
+// ─── API ─────────────────────────────────────────
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers:{'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API+path, opts);
+  return r.json();
+}
+
+// ─── STATUS CHECK ────────────────────────────────
+
+async function checkStatus() {
+  try {
+    await fetch(API+'/resumo?mes='+currentMonth());
+    document.getElementById('status-dot').className = 'status-dot online';
+    document.getElementById('status-txt').textContent = 'Servidor online';
+  } catch {
+    document.getElementById('status-dot').className = 'status-dot';
+    document.getElementById('status-txt').textContent = 'Sem conexão';
+  }
+}
+
+// ─── NAVIGATE ────────────────────────────────────
+
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => { if(n.getAttribute('onclick')?.includes(page)) n.classList.add('active'); });
+  if (page==='dashboard') renderDashboard();
+  if (page==='vendas') { loadVendas(); loadFormasChart(); }
+  if (page==='compras') { loadCompras(); loadCatsChart(); }
+  if (page==='custos') { loadCustos(); loadCustosChart(); }
+  if (page==='relatorio') renderRelatorio();
+}
+
+// ─── VENDAS ──────────────────────────────────────
+
+async function salvarVenda() {
+  const btn = document.getElementById('btn-venda');
+  const din = parseFloat(document.getElementById('v-din').value)||0;
+  const deb = parseFloat(document.getElementById('v-deb').value)||0;
+  const cre = parseFloat(document.getElementById('v-cre').value)||0;
+  const pix = parseFloat(document.getElementById('v-pix').value)||0;
+  if (din+deb+cre+pix === 0) { toast('Informe pelo menos um valor','error'); return; }
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Salvando...';
+  try {
+    await api('/vendas','POST',{
+      mes: document.getElementById('venda-mes').value,
+      semana: parseInt(document.getElementById('venda-semana').value),
+      dinheiro:din, debito:deb, credito:cre, pix:pix,
+      obs: document.getElementById('v-obs').value
+    });
+    ['v-din','v-deb','v-cre','v-pix','v-obs'].forEach(id => document.getElementById(id).value='');
+    toast('✓ Venda registrada!');
+    loadVendas(); loadFormasChart(); renderDashboard();
+  } catch(e) { toast('Erro ao salvar — servidor offline?','error'); }
+  btn.disabled=false; btn.innerHTML='✓ Salvar Venda';
+}
+
+async function loadVendas() {
+  const mes = document.getElementById('vf-mes')?.value || currentMonth();
+  try {
+    const rows = await api('/vendas?mes='+mes);
+    const tbody = document.getElementById('vtbody');
+    const empty = document.getElementById('v-empty');
+    if (!rows.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td><span class="badge badge-blue">${mesLabel(r.mes)}</span></td>
+      <td>Semana ${r.semana}</td>
+      <td class="text-muted">${fmt(r.dinheiro)}</td>
+      <td class="text-muted">${fmt(r.debito)}</td>
+      <td class="text-muted">${fmt(r.credito)}</td>
+      <td class="text-muted">${fmt(r.pix)}</td>
+      <td class="text-green" style="font-weight:600">${fmt(r.total)}</td>
+      <td class="text-muted" style="font-size:11px">${r.obs||'—'}</td>
+      <td><button class="btn btn-danger" onclick="delVenda(${r.id})">✕</button></td>
+    </tr>`).join('');
+  } catch { toast('Erro ao carregar vendas','error'); }
+}
+
+async function delVenda(id) {
+  if (!confirm('Remover esta venda?')) return;
+  await api('/vendas/'+id,'DELETE');
+  loadVendas(); loadFormasChart(); renderDashboard(); toast('Removido');
+}
+
+async function loadFormasChart() {
+  const mes = document.getElementById('vf-mes')?.value || currentMonth();
+  try {
+    const rows = await api('/vendas?mes='+mes);
+    const t = {Dinheiro:0,Débito:0,Crédito:0,Pix:0};
+    rows.forEach(r => { t.Dinheiro+=r.dinheiro; t.Débito+=r.debito; t.Crédito+=r.credito; t.Pix+=r.pix; });
+    renderDoughnut('chart-formas',Object.keys(t),Object.values(t),['#00e5a0','#4d9fff','#ff6b35','#ffd166']);
+  } catch {}
+}
+
+// ─── COMPRAS ─────────────────────────────────────
+
+async function salvarCompra() {
+  const btn = document.getElementById('btn-compra');
+  const val = parseFloat(document.getElementById('c-val').value)||0;
+  if (!val) { toast('Informe o valor da compra','error'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Salvando...';
+  try {
+    await api('/compras','POST',{
+      mes: document.getElementById('compra-mes').value,
+      semana: parseInt(document.getElementById('compra-semana').value),
+      fornecedor: document.getElementById('c-forn').value,
+      categoria: document.getElementById('c-cat').value,
+      valor: val, obs: document.getElementById('c-obs').value
+    });
+    ['c-forn','c-val','c-obs'].forEach(id => document.getElementById(id).value='');
+    toast('✓ Compra registrada!');
+    loadCompras(); loadCatsChart(); renderDashboard();
+  } catch { toast('Erro ao salvar','error'); }
+  btn.disabled=false; btn.innerHTML='✓ Salvar Compra';
+}
+
+async function loadCompras() {
+  const mes = document.getElementById('cf-mes')?.value || currentMonth();
+  try {
+    const rows = await api('/compras?mes='+mes);
+    const tbody = document.getElementById('ctbody');
+    const empty = document.getElementById('c-empty');
+    if (!rows.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td><span class="badge badge-yellow">${mesLabel(r.mes)}</span></td>
+      <td>Semana ${r.semana}</td>
+      <td>${r.fornecedor||'—'}</td>
+      <td><span class="badge badge-blue">${r.categoria}</span></td>
+      <td class="text-red" style="font-weight:600">${fmt(r.valor)}</td>
+      <td class="text-muted" style="font-size:11px">${r.obs||'—'}</td>
+      <td><button class="btn btn-danger" onclick="delCompra(${r.id})">✕</button></td>
+    </tr>`).join('');
+  } catch { toast('Erro ao carregar compras','error'); }
+}
+
+async function delCompra(id) {
+  if (!confirm('Remover esta compra?')) return;
+  await api('/compras/'+id,'DELETE');
+  loadCompras(); loadCatsChart(); renderDashboard(); toast('Removido');
+}
+
+async function loadCatsChart() {
+  const mes = document.getElementById('cf-mes')?.value || currentMonth();
+  try {
+    const rows = await api('/compras?mes='+mes);
+    const cats = {};
+    rows.forEach(r => { cats[r.categoria]=(cats[r.categoria]||0)+r.valor; });
+    renderDoughnut('chart-cats',Object.keys(cats),Object.values(cats),['#ff6b35','#4d9fff','#00e5a0','#ffd166','#ff4d6d','#9b7fe8']);
+  } catch {}
+}
+
+// ─── CUSTOS ──────────────────────────────────────
+
+async function salvarCusto() {
+  const btn = document.getElementById('btn-custo');
+  const val = parseFloat(document.getElementById('cu-val').value)||0;
+  if (!val) { toast('Informe o valor do custo','error'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Salvando...';
+  try {
+    await api('/custos','POST',{
+      mes: document.getElementById('custo-mes').value,
+      categoria: document.getElementById('cu-cat').value,
+      descricao: document.getElementById('cu-desc').value,
+      valor: val
+    });
+    ['cu-desc','cu-val'].forEach(id => document.getElementById(id).value='');
+    toast('✓ Custo fixo lançado!');
+    loadCustos(); loadCustosChart(); renderDashboard();
+  } catch { toast('Erro ao salvar','error'); }
+  btn.disabled=false; btn.innerHTML='✓ Salvar Custo';
+}
+
+async function loadCustos() {
+  const mes = document.getElementById('cuf-mes')?.value || currentMonth();
+  try {
+    const rows = await api('/custos?mes='+mes);
+    const tbody = document.getElementById('cutbody');
+    const empty = document.getElementById('cu-empty');
+    if (!rows.length) { tbody.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td><span class="badge badge-yellow">${mesLabel(r.mes)}</span></td>
+      <td>${r.categoria}</td>
+      <td class="text-muted">${r.descricao||'—'}</td>
+      <td class="text-yellow" style="font-weight:600">${fmt(r.valor)}</td>
+      <td><button class="btn btn-danger" onclick="delCusto(${r.id})">✕</button></td>
+    </tr>`).join('');
+  } catch { toast('Erro ao carregar custos','error'); }
+}
+
+async function delCusto(id) {
+  if (!confirm('Remover este custo?')) return;
+  await api('/custos/'+id,'DELETE');
+  loadCustos(); loadCustosChart(); renderDashboard(); toast('Removido');
+}
+
+async function loadCustosChart() {
+  const mes = document.getElementById('cu-filter')?.value || currentMonth();
+  try {
+    const rows = await api('/custos?mes='+mes);
+    const cats = {};
+    rows.forEach(r => { cats[r.categoria]=(cats[r.categoria]||0)+r.valor; });
+    renderDoughnut('chart-cu-cat',Object.keys(cats),Object.values(cats),['#ffd166','#ff6b35','#4d9fff','#ff4d6d','#9b7fe8','#00b4d8','#00e5a0']);
+  } catch {}
+}
+
+// ─── DASHBOARD ───────────────────────────────────
+
+async function renderDashboard() {
+  const mes = document.getElementById('dash-month')?.value || currentMonth();
+  try {
+    const [res, vendas, compras, custos] = await Promise.all([
+      api('/resumo?mes='+mes),
+      api('/vendas?mes='+mes),
+      api('/compras?mes='+mes),
+      api('/custos?mes='+mes)
+    ]);
+
+    document.getElementById('kpi-receita').textContent = fmt(res.receita);
+    document.getElementById('kpi-receita-d').textContent = res.num_vendas+' semanas registradas';
+    document.getElementById('kpi-compras').textContent = fmt(res.custo_compras);
+    document.getElementById('kpi-compras-d').textContent = res.num_compras+' compras';
+    document.getElementById('kpi-fixos').textContent = fmt(res.custos_fixos);
+
+    const ll = document.getElementById('kpi-lucro');
+    ll.textContent = fmt(res.lucro_liq);
+    ll.style.color = res.lucro_liq >= 0 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('kpi-margem').textContent = 'Margem: '+res.margem.toFixed(1)+'%';
+
+    document.getElementById('res-receita').textContent = fmt(res.receita);
+    document.getElementById('res-compras').textContent = fmt(res.custo_compras);
+    document.getElementById('res-lb').textContent = fmt(res.lucro_bruto);
+    document.getElementById('res-fixos').textContent = fmt(res.custos_fixos);
+    const resLL = document.getElementById('res-ll');
+    resLL.textContent = fmt(res.lucro_liq);
+    resLL.style.color = res.lucro_liq >= 0 ? 'var(--accent)' : 'var(--danger)';
+    const pct = Math.max(0,Math.min(100,res.margem));
+    document.getElementById('res-mp').textContent = res.margem.toFixed(1)+'%';
+    document.getElementById('res-mb').style.width = pct+'%';
+    document.getElementById('res-mb').style.background = res.margem>=0?'var(--accent)':'var(--danger)';
+
+    // Chart semanas
+    const sems = [1,2,3,4,5];
+    const vSem = sems.map(s => vendas.filter(v=>v.semana===s).reduce((a,v)=>a+v.total,0));
+    const cSem = sems.map(s => compras.filter(c=>c.semana===s).reduce((a,c)=>a+c.valor,0));
+    renderBar('chart-semanas',['S1','S2','S3','S4','S5'],[
+      {label:'Vendas',data:vSem,color:'#00e5a0'},
+      {label:'Compras',data:cSem,color:'#ff6b35'}
+    ]);
+
+    // Chart composição
+    const catsCu = {};
+    custos.forEach(c => { catsCu[c.categoria]=(catsCu[c.categoria]||0)+c.valor; });
+    const cLabels = ['Compras',...Object.keys(catsCu)];
+    const cVals = [res.custo_compras,...Object.values(catsCu)];
+    renderDoughnut('chart-composicao',cLabels,cVals,['#ff6b35','#ffd166','#4d9fff','#ff4d6d','#9b7fe8','#00b4d8']);
+
+    // Evolução 6m
+    await renderEvolucao();
+
+  } catch(e) { console.error(e); }
+}
+
+async function renderEvolucao() {
+  const months = getMonthsList().slice(-6);
+  try {
+    const results = await Promise.all(months.map(m => api('/resumo?mes='+m.key)));
+    const labels = months.map(m => { const [y,mo]=m.key.split('-'); return MESES[parseInt(mo)-1]; });
+    const vendas = results.map(r => r.receita);
+    const lucros = results.map(r => r.lucro_liq);
+    renderLineChart('chart-evolucao',labels,[
+      {label:'Vendas',data:vendas,color:'#4d9fff'},
+      {label:'Lucro Líquido',data:lucros,color:'#00e5a0'}
+    ]);
+  } catch {}
+}
+
+// ─── RELATÓRIO ───────────────────────────────────
+
+async function renderRelatorio() {
+  const mes = document.getElementById('rel-mes')?.value || currentMonth();
+  try {
+    const [res, vendas, custos] = await Promise.all([
+      api('/resumo?mes='+mes),
+      api('/vendas?mes='+mes),
+      api('/custos?mes='+mes)
+    ]);
+
+    document.getElementById('rel-kpis').innerHTML = [
+      {l:'Receita Total',v:fmt(res.receita),cls:'success',ic:'💰',c:'green'},
+      {l:'Custo de Compras',v:fmt(res.custo_compras),cls:'danger',ic:'🛒',c:'red'},
+      {l:'Custos Fixos',v:fmt(res.custos_fixos),cls:'warning',ic:'📋',c:'yellow'},
+      {l:'Lucro Líquido',v:fmt(res.lucro_liq),cls:res.lucro_liq>=0?'success':'danger',ic:'🏆',c:res.lucro_liq>=0?'green':'red'},
+    ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-icon">${k.ic}</div><div class="kpi-label">${k.l}</div><div class="kpi-value ${k.c}">${k.v}</div></div>`).join('');
+
+    const ticket = vendas.length ? res.receita/vendas.length : 0;
+    const agrup = {};
+    custos.forEach(c => {
+      if(c.categoria.includes('Aluguel')) agrup['Aluguel']=(agrup['Aluguel']||0)+c.valor;
+      else if(c.categoria.includes('Cond')) agrup['Condomínio']=(agrup['Condomínio']||0)+c.valor;
+      else if(c.categoria.includes('Energia')) agrup['Energia']=(agrup['Energia']||0)+c.valor;
+      else if(c.categoria.includes('Franquia')) agrup['Franquia']=(agrup['Franquia']||0)+c.valor;
+      else agrup['Outros']=(agrup['Outros']||0)+c.valor;
+    });
+
+    document.getElementById('rel-dre').innerHTML = `
+      <div class="margin-row"><span class="label">Receita Bruta</span><span class="text-green">${fmt(res.receita)}</span></div>
+      <div class="margin-row"><span class="label">(-) Custo de Mercadorias</span><span class="text-red">${fmt(res.custo_compras)}</span></div>
+      <div class="margin-row" style="font-weight:600"><span>= Lucro Bruto</span><span>${fmt(res.lucro_bruto)}</span></div>
+      <div style="height:10px"></div>
+      ${Object.entries(agrup).map(([k,v])=>`<div class="margin-row"><span class="label">(-) ${k}</span><span class="text-yellow">${fmt(v)}</span></div>`).join('')}
+      <div style="border-top:2px solid var(--border);margin-top:10px;padding-top:12px">
+        <div class="margin-row" style="font-size:15px;font-weight:700">
+          <span style="font-family:'Syne',sans-serif">= LUCRO LÍQUIDO</span>
+          <span style="color:${res.lucro_liq>=0?'var(--accent)':'var(--danger)'};font-family:'Syne',sans-serif">${fmt(res.lucro_liq)}</span>
+        </div>
+        <div class="margin-row"><span class="label">Margem Líquida</span><span>${res.margem.toFixed(1)}%</span></div>
+        <div class="margin-row"><span class="label">Ticket Médio Semanal</span><span>${fmt(ticket)}</span></div>
+      </div>`;
+
+    const sems=[1,2,3,4,5];
+    renderBar('chart-rel-s',['S1','S2','S3','S4','S5'],[
+      {label:'Vendas',data:sems.map(s=>vendas.filter(v=>v.semana===s).reduce((a,v)=>a+v.total,0)),color:'#00e5a0'}
+    ]);
+
+    const rtbody = document.getElementById('rel-cu-tbody');
+    const rempty = document.getElementById('rel-cu-empty');
+    if (!custos.length) { rtbody.innerHTML=''; rempty.style.display='block'; }
+    else {
+      rempty.style.display='none';
+      const total = custos.reduce((s,c)=>s+c.valor,0);
+      rtbody.innerHTML = custos.map(c=>`<tr><td>${c.categoria}</td><td class="text-muted">${c.descricao||'—'}</td><td class="text-yellow" style="font-weight:600">${fmt(c.valor)}</td></tr>`).join('')
+        + `<tr style="border-top:2px solid var(--border);font-weight:700"><td colspan="2">TOTAL</td><td class="text-yellow">${fmt(total)}</td></tr>`;
+    }
+  } catch(e) { console.error(e); }
+}
+
+// ─── BACKUP ──────────────────────────────────────
+
+async function exportBackup() {
+  try {
+    const r = await fetch(API+'/backup');
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=`backup_mercadoflow_${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+    toast('✓ Backup exportado!');
+  } catch { toast('Erro ao exportar backup','error'); }
+}
+
+async function importBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!confirm('Isso substituirá TODOS os dados atuais. Confirmar?')) return;
+  const text = await file.text();
+  const data = JSON.parse(text);
+  try {
+    const r = await api('/restore','POST',data);
+    if (r.ok) { toast('✓ Backup restaurado com sucesso!'); renderDashboard(); }
+    else toast('Erro: '+r.msg,'error');
+  } catch { toast('Erro ao restaurar backup','error'); }
+}
+
+// ─── CHARTS ──────────────────────────────────────
+
+const charts = {};
+function killChart(id) { if(charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function renderDoughnut(id,labels,data,colors) {
+  killChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  const hasData = data.some(v=>v>0);
+  const parent = ctx.parentElement;
+  const oldEmpty = parent.querySelector('.empty-chart');
+  if (!hasData) {
+    ctx.style.display='none';
+    if (!oldEmpty) { const d=document.createElement('div'); d.className='empty-state empty-chart'; d.innerHTML='<div class="empty-icon">📊</div><p>Sem dados para exibir</p>'; parent.appendChild(d); }
+    return;
+  }
+  ctx.style.display='block'; if(oldEmpty) oldEmpty.remove();
+  charts[id] = new Chart(ctx,{
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{position:'right',labels:{color:'#6b7a99',font:{family:'DM Sans',size:12},padding:10,boxWidth:11}},
+      tooltip:{callbacks:{label:c=>' '+fmt(c.raw)}}}}
+  });
+}
+
+function renderBar(id,labels,datasets) {
+  killChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:datasets.map(d=>({label:d.label,data:d.data,backgroundColor:d.color+'33',borderColor:d.color,borderWidth:1.5,borderRadius:4}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#6b7a99',font:{family:'DM Sans',size:12}}},tooltip:{callbacks:{label:c=>' '+fmt(c.raw)}}},
+      scales:{x:{grid:{color:'#1f2d4522'},ticks:{color:'#6b7a99'}},y:{grid:{color:'#1f2d4522'},ticks:{color:'#6b7a99',callback:v=>'R$'+v.toLocaleString('pt-BR')}}}}
+  });
+}
+
+function renderLineChart(id,labels,datasets) {
+  killChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:datasets.map(d=>({label:d.label,data:d.data,borderColor:d.color,backgroundColor:d.color+'15',fill:true,tension:0.4,pointBackgroundColor:d.color,pointRadius:4}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#6b7a99',font:{family:'DM Sans',size:12}}},tooltip:{callbacks:{label:c=>' '+fmt(c.raw)}}},
+      scales:{x:{grid:{color:'#1f2d4522'},ticks:{color:'#6b7a99'}},y:{grid:{color:'#1f2d4522'},ticks:{color:'#6b7a99',callback:v=>'R$'+v.toLocaleString('pt-BR')}}}}
+  });
+}
+
+// ─── BOOT ────────────────────────────────────────
+
+initSelects();
+checkStatus();
+setInterval(checkStatus, 15000);
+renderDashboard();
+</script>
+</body>
+</html>
